@@ -1,0 +1,77 @@
+Metadata-Version: 2.4
+Name: autopr
+Version: 0.1.0
+Summary: Minimal MVP for AutoPR - AI-powered PR generator and reviewer
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Dynamic: license-file
+
+# AutoPR — AI-powered Pull Request Generator & Reviewer
+
+This repository contains a minimal, open-source MVP prototype for the PRD: **AI-Powered Pull Request Generator & Reviewer**.
+
+What this scaffold provides:
+- Minimal FastAPI backend with two endpoints: /generate and /review (LLM stubbed)
+- CLI tool `pr-ai` for local generation/review quickly
+- Example GitHub Action workflow that shows how this would run on PR events
+- Tests and documentation to validate the basic behavior
+
+
+Quickstart
+1. Create a virtual environment and install requirements:
+
+```powershell
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+2. Make the package importable (recommended)
+
+Install in editable mode so the `autopr` package is on your environment path. This makes `uvicorn autopr.main:app` work without needing to set PYTHONPATH each time.
+
+```powershell
+pip install -e .
+```
+
+3. Run the API locally:
+
+```powershell
+uvicorn autopr.main:app --reload --port 8000
+```
+
+3. Try the endpoints with curl or the CLI:
+
+```powershell
+curl -X POST http://127.0.0.1:8000/generate -H "Content-Type: application/json" -d '{"diff":"+ added line", "commits": ["fix: add helper"], "issue":"#123"}'
+pr-ai gen --diff "+ added line" --commits "fix: add helper" --issue "#123"
+```
+
+See `docs/PRD.md` for the full product requirements and MVP scope used to build this scaffold.
+
+Using a real LLM provider
+------------------------
+
+This project supports three provider modes: `openai`, `anthropic`, and `stub`.
+
+- Set the environment variable `AUTOPR_PROVIDER` to `openai` or `anthropic` to use a real provider.
+- Provide the appropriate environment variables containing API keys:
+	- `OPENAI_API_KEY` and optionally `OPENAI_MODEL` (e.g. gpt-4o)
+	- `ANTHROPIC_API_KEY` and optionally `ANTHROPIC_MODEL` (e.g. claude-2)
+- A `.env.example` file is included to show the expected variable names. Do not commit real API keys to your repo.
+
+Local development (safety)
+-------------------------
+The default `stub` provider is safe for development and offline test runs. When testing providers in CI, always mock network calls so secrets are not required.
+
+Quick alternative: run directly using PYTHONPATH
+------------------------------------------------
+If you prefer not to install the package, you can run uvicorn with the `src` path on PYTHONPATH so the `autopr` package is importable without installation:
+
+```powershell
+$env:PYTHONPATH = "src"; uvicorn autopr.main:app --reload --port 8000
+```
+
+
+License: MIT

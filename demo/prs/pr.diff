@@ -1,0 +1,3 @@
++def add(a, b):
++    """Bug introduced: returns subtraction instead of sum."""
++    return a - b

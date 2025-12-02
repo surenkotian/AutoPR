@@ -1,0 +1,17 @@
+LICENSE
+README.md
+pyproject.toml
+src/autopr/__init__.py
+src/autopr/cli.py
+src/autopr/llm.py
+src/autopr/main.py
+src/autopr/prompts.py
+src/autopr/providers.py
+src/autopr.egg-info/PKG-INFO
+src/autopr.egg-info/SOURCES.txt
+src/autopr.egg-info/dependency_links.txt
+src/autopr.egg-info/top_level.txt
+tests/test_api.py
+tests/test_cli.py
+tests/test_llm_selection.py
+tests/test_providers.py

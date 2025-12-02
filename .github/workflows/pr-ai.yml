@@ -1,0 +1,136 @@
+name: AutoPR CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run tests
+        run: |
+          pytest -q
+
+  pr-ai-runner:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install deps + package
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Prepare base and PR test/coverage
+        shell: bash
+        run: |
+          echo "Base branch: ${{ github.event.pull_request.base.ref }}"
+          # capture base branch tests/coverage
+          git checkout ${{ github.event.pull_request.base.ref }}
+          python -m pytest -q --disable-warnings > base_test.log || true
+          python -m pytest --disable-warnings --maxfail=1 --cov=src --cov-report=term > base_cov.log || true
+          # checkout back to PR branch
+          git checkout -
+
+      - name: Create PR diff & collect commits
+        shell: bash
+        run: |
+          git diff ${{ github.event.pull_request.base.sha }} ${{ github.sha }} > pr.diff
+          git log --pretty=format:%s ${{ github.event.pull_request.base.sha }}..${{ github.sha }} > commits.txt || true
+
+      - name: Run tests on PR and produce logs
+        shell: bash
+        run: |
+          python -m pytest -q --disable-warnings > pr_test.log || true
+          python -m pytest --disable-warnings --maxfail=1 --cov=src --cov-report=term > pr_cov.log || true
+
+      - name: Create review JSON
+        shell: bash
+        run: |
+          python .github/scripts/pr_review_runner.py --diff-file pr.diff --commits-file commits.txt --test-log pr_test.log --coverage-before base_cov.log --coverage-after pr_cov.log --output pr_review.json
+
+      - name: Post PR comment with results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('pr_review.json', 'utf8');
+            const parsed = JSON.parse(body);
+            let message = `## 🤖 AutoPR — Automated PR Review\n\n`;
+
+            // PR generation
+            if (parsed.pr) {
+              message += `### 📝 Suggested PR Title\n**${parsed.pr.title || 'Auto-generated title'}**\n\n`;
+              message += `### 🔍 Suggested PR Description\n`;
+              message += `<details><summary>Show description</summary>\n\n`;
+              if (parsed.pr.what_changed) message += `**What changed:** ${parsed.pr.what_changed}\n\n`;
+              if (parsed.pr.why) message += `**Why:** ${parsed.pr.why}\n\n`;
+              if (parsed.pr.files_impacted && parsed.pr.files_impacted.length) message += `**Files impacted:** ${parsed.pr.files_impacted.join(', ')}\n\n`;
+              if (parsed.pr.tests) message += `**Tests:** ${parsed.pr.tests}\n\n`;
+              if (parsed.pr.risk_level) message += `**Risk level:** ${parsed.pr.risk_level}\n\n`;
+              if (parsed.pr.rollback_plan) message += `**Rollback:** ${parsed.pr.rollback_plan}\n\n`;
+              message += `</details>\n\n`;
+            }
+
+            // Review summary
+            if (parsed.review) {
+              message += `### ✅ Review summary\n${parsed.review.summary || ''}\n\n`;
+              if (parsed.review.findings && parsed.review.findings.length) {
+                message += `**Findings (top ${Math.min(parsed.review.findings.length, 25)}):**\n`;
+                parsed.review.findings.slice(0, 25).forEach(f => {
+                  message += `- [${(f.severity || 'info').toUpperCase()}] **${f.type}** — ${f.message}\n`;
+                });
+                message += '\n';
+              }
+            }
+
+            // Tests
+            if (parsed.review && parsed.review._tests) {
+              const t = parsed.review._tests;
+              message += `### 🧪 Test results\n- Passed: ${t.passed}  •  Failed: ${t.failed}  •  Errors: ${t.errors}  •  Skipped: ${t.skipped}\n\n`;
+            }
+
+            // Coverage
+            if (parsed.review && parsed.review._coverage) {
+              const c = parsed.review._coverage;
+              message += `### 📊 Coverage\n- Before: ${c.before ?? 'N/A'}%  •  After: ${c.after ?? 'N/A'}%  •  Δ: ${c.delta ?? 'N/A'}%\n\n`;
+            }
+
+            // Issue alignment
+            if (parsed.review && parsed.review._issue_alignment) {
+              const ia = parsed.review._issue_alignment;
+              message += `### 🎯 Issue alignment\n- Score: ${ia.score.toFixed(2)}  •  Matched: ${ia.matched && ia.matched.length ? ia.matched.join(', ') : 'none'}\n\n`;
+            }
+
+            // Files + observations (from PR context)
+            if (parsed.pr && parsed.pr._context && parsed.pr._context.files_changed && parsed.pr._context.files_changed.length) {
+              message += `### 🗂️ Files changed\n- ${parsed.pr._context.files_changed.join('\n- ')}\n\n`;
+            }
+
+            message += `---\n*This comment was generated automatically by AutoPR.*`;
+            // post comment
+            github.rest.issues.createComment({
+              issue_number: context.payload.pull_request.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            })
