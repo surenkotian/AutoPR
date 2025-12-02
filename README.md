@@ -1,6 +1,18 @@
 # AutoPR — AI-powered Pull Request Generator & Reviewer
 
+<!-- Try demo badge (replace with real demo repo after publishing) -->
+[![Try the demo](https://img.shields.io/badge/demo-autopr_demo-blue.svg)](https://github.com/your-user/autopr-demo)
+
+# AutoPR — AI-powered Pull Request Generator & Reviewer
+
+
 AutoPR automates the repetitive parts of pull requests for teams: it writes concise PR titles & descriptions, validates CI/tests, runs deterministic static and lint checks, and provides an AI-assisted review summary. This repository is an MVP scaffold for that functionality.
+Try the demo
+---------
+Want to get this running on GitHub right now? Copy the `demo/demo-repo-ready` folder into a new repo (or use the included publish helper scripts) and push. Once you update the workflow's pip URL to point at your AutoPR package, create a PR and the Action will run — producing a polished AutoPR comment on the PR for screenshots and demos.
+
+
+
 
 What this repo provides
 - A FastAPI backend with /generate and /review endpoints (with a pluggable LLM provider; a local stub is included)
